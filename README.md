@@ -1,2 +1,2 @@
 # dataModeling
-Before the start of data modeling, we conduct exploratory data analysis, data manipulation(data cleaning, tidying).
+Data Modeling could help us analyze past influnecing factors and predict trend. 

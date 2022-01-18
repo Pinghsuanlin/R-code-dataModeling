@@ -1,8 +1,10 @@
 rm(list=ls())
+
 #install.packages("ISLR")
 library(ISLR)
 data(OJ)
 set.seed(1234)
+
 #install.packages("caTools")
 library(caTools)
 split = sample.split(OJ$Purchase, SplitRatio = 0.7)
@@ -10,16 +12,7 @@ train = OJ[split,]
 test = OJ[-split,]
 summary(train)
 nrow(train)
-#Q2
-summary(train$Purchase)
-#Q3
-mean(train$PriceMM)
-#Q4
-mean(train$DiscMM)
-#Q5
-summary(train$WeekofPurchase == 275 & train$Purchase == "MM")
-#################
-#Q1
+
 library(rpart); library(rpart.plot)
 tree = rpart(Purchase~PriceCH+PriceMM+DiscCH+DiscMM+SpecialCH+
                SpecialMM+LoyalCH+PriceDiff+PctDiscMM+PctDiscCH,
@@ -31,7 +24,7 @@ library(ROCR)
 ROCRPred = prediction(predictions = pred_test, labels = test$Purchase)
 auc = as.numeric(performance(prediction.obj = ROCRPred,measure = 'auc')@y.values); auc
 
-#Q2
+
 library(caret)
 trControl = trainControl(method='cv',number = 10)
 tuneGrid = expand.grid(.cp = seq(from = 0.001,to = 0.1,by = 0.001))
@@ -50,7 +43,8 @@ ggplot(data=cvModel$results, aes(x=cp, y=Accuracy))+
   geom_point(color='brown')+
   theme_bw()+
   ggtitle(label=paste('Lowest RMSE is at a cp of ',cvModel$bestTune$cp))
-#Q3
+
+
 tree2 = rpart(Purchase~PriceCH+PriceMM+DiscCH+DiscMM+SpecialCH+SpecialMM+LoyalCH+
                 PriceDiff+PctDiscMM+PctDiscCH,data = train, method = 'class', 
               control = rpart.control(cp = 0.005))
@@ -58,7 +52,8 @@ rpart.plot(tree2)
 pred2_test = predict(tree2, type='prob', newdata = test)[,2]
 ROCRPred2 = prediction(predictions = pred2_test, labels = test$Purchase)
 auc2 = as.numeric(performance(prediction.obj = ROCRPred,measure = 'auc')@y.values); auc2
-######################
+
+
 #install.packages("randomForest")
 library(randomForest)
 set.seed(617)
@@ -86,11 +81,9 @@ accuracy_test = sum(ct[1,1],ct[2,2])/nrow(test); accuracy_test
 library(ROCR)
 ROCRPred = prediction(predictions = pred_test, labels = test$Purchase)
 auc = as.numeric(performance(prediction.obj = ROCRPred,measure = 'auc')@y.values); auc
-
-
 round(auc,2)
 
-#Q2
+
 library(randomForest)
 set.seed(617)
 forest = randomForest(Purchase~PriceCH+PriceMM+DiscCH+DiscMM+SpecialCH+
@@ -108,10 +101,9 @@ ct3 = table(test$Purchase,pred3_test_class)
 library(ROCR)
 ROCRPred3 = prediction(predictions = pred3_test, labels = test$Purchase)
 auc3 = as.numeric(performance(prediction.obj = ROCRPred3,measure = 'auc')@y.values); auc3
-
 round(auc3,2)
 
-#Q3
+
 train$Purchase2 = as.numeric(train$Purchase)-1
 
 test$Purchase2 = as.numeric(test$Purchase)-1

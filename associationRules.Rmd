@@ -1,0 +1,351 @@
+---
+title: "Ass3"
+author: "Ping-Hsuan Lin"
+date: "3/24/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+Ensure you are using R Version 4.1.2, arules version 1.7.2 and recommenderlab version 0.2.7. You can verify you are using the correct versions by running the following code
+```{r}
+R.Version()
+packageVersion(pkg = 'arules')
+packageVersion(pkg = 'recommenderlab') 
+```
+
+Section1: Setting UP
+Description of the dataset can be viewed by typing the following in your R Console. '?Groceries'
+```{r}
+#install.packages('arules')
+#install.packages('arulesViz')
+library(arules); library(arulesViz)
+data(Groceries)
+```
+
+1-1. Load the dataset called Groceries that accompanies the arules package by executing data(Groceries). How many transactions does the transactions dataset Groceries contain?
+```{r}
+data(Groceries)
+Groceries
+```
+
+#*Association Rules*
+#*Market basket analysis*
+#Frequency plot
+1-2. Which of the following are among the top 5 (five) frequently occurring items in the dataset?
+```{r}
+#Examine individual items. Support is set to 0 so we can see all items.
+itemFrequencyPlot(Groceries, support = 0.0, cex.names=0.8, 
+                  type = "relative", horiz = TRUE, col = "steelblue2", las = 1, topN=5,
+                  xlab = paste("Proportion of Market Baskets Containing Item"))
+```
+#List association of rules
+#Reduce rules
+## apriori
+*apriori(data, parameter = list(support, confidence, maxlen, maxtime), appearance, control)*
+we want to select rules that indicate*strong association (high lift) and not rare (high support)*
+1-3. Run a market basket analysis to generate a set of rules with the following parameters: support=0.01 and confidence=0.01. How many rules were generated?
+(meaning that support>0.01, confidence>0.05 rules are retained)
+
+Note: This assigning parameter approach is to examine only strong rules.
+```{r}
+rules_1 = apriori(Groceries,parameter=list(support=0.01,confidence=0.01))
+
+summary(rules_1)
+#inspect(rules_1) #to see a full list of lhs, rhs and theirs support, confidence, coverage, lift measurements
+#quality(rules_1) #hide rule details
+```
+
+1-4. Now, repeat the above market basket analysis but with support=0.001 and confidence=0.001. How many rules were generated?
+```{r}
+rules_2 = apriori(Groceries,parameter=list(support=0.001,confidence=0.001))
+summary(rules_2)
+#x_2 = inspect(rules_2)
+```
+## summary
+## sort or order
+1-5. Let us go back to the first market basket analysis with support of 0.01 and confidence of 0.01. Among the rules generated, what is the value of the largest lift? Type in the value of the largest lift.
+```{r}
+#method1
+summary(rules_1)
+
+#To know the list of rules and sort in details
+#method2
+top.lift <- sort(rules_1, decreasing = TRUE, na.last = NA, by = 'lift')
+inspect(head(top.lift,5))
+#Method3
+#put in console to run it, then it works
+#x = inspect(rules_1)
+#x[order(x$lift, decreasing = T),] #Sort by lift
+#x[order(x$lift, x$confidence, decreasing = T),] #Sort by lift, then confidence
+```
+## set number of items association
+1-6. In a grocery store setting, rules with *just two items* are more actionable than ones that have many items. For instance, cross-promotions (e.g., when you buy a carton of Brand A milk, take 50 cents of Brand X bread) or retail merchandising decisions (e.g., place Brand A milk close to Brand X bread) are easier to implement for two-item sets. 
+
+Therefore, now you will generate a list of rules for only two-items. Keep support and confidence at 0.01. How many two-item rules are created? Note, a rule with only one-item should not be included.
+```{r}
+rules_1_2items = apriori(Groceries,parameter=list(support=0.01,confidence=0.01,minlen=2,maxlen=2))
+#summary(rules_1_2items)
+```
+#Sort association rules
+1-7. Which of the following rules created from the analysis in the previous question has the highest confidence?
+Source:
+Sort association by lift, confidence, support:  https://stackoverflow.com/questions/22944611/sorting-association-rules-in-r
+```{r}
+#inspect(rules_1_2items)
+
+top.confidence <- sort(rules_1_2items, decreasing = TRUE, na.last = NA, by = 'confidence') #or by support, lift
+inspect(head(top.confidence, 10))
+```
+#Look for specific relationship 
+## Appearance
+*can also play with dplyr*
+1-8. What is support for the rule, soda => whole milk?
+1-9. The store manager contends that the support between soda and whole milk is not of much value, because most people buy whole milk.  She goes on to say the association between soda and whole milk is weak.  Is she correct? *YES*
+```{r}
+
+rules_soda = apriori(Groceries,parameter=list(support=0.01,confidence=0.01,minlen=2,maxlen=2),appearance = list(lhs='soda'))
+soda = inspect(rules_soda)
+soda[soda$rhs == '{whole milk}',]
+
+#Below will give wrong answer:
+#rules_soda = apriori(Groceries,parameter=list(support=0.001,confidence=0.01),appearance = list(lhs='soda', rhs = 'whole milk'))
+#inspect(rules_soda)
+```
+1-10. A shopper just picked up yogurt while shopping for groceries. What is the most likely item the shopper will also buy from the grocery store? Assume the shopper only buys two items on this shopping trip.
+```{r}
+rules_yogurt = apriori(Groceries,parameter=list(support=0.001,confidence=0.01, minlen=2, maxlen=2),appearance = list(lhs='yogurt'))#minlen, maxlen to only have 2 groceries
+top.support <- sort(rules_yogurt, decreasing = TRUE, na.last = NA, by = 'support')
+inspect(head(top.support, 10))
+
+#Or
+#yogurt = inspect(rules_yogurt)
+#yogurt = yogurt[yogurt$count!=0,]
+#yogurt[order(yogurt$support, decreasing = T),]
+```
+#*Prepare data for recommendations*
+Data for Sections 2 and 3 of this assignment can be downloaded here: product_ratings_data.csv
+
+2-1. What format is the data in? *Tall or Long (not Wide)*
+```{r}
+setwd('D:/Spring2022Codes/R')
+data = read.csv('product_ratings_data.csv')
+```
+
+
+#Restructure data 
+## as realRatingMatrix
+2-2. From the imported data, create a realRatingMatrix object called, ratings_matrix. How many ratings does the realRatingMatrix contain?
+```{r}
+library(recommenderlab)
+data_matrix = as(data,Class = 'realRatingMatrix');data_matrix
+```
+## as matrix
+2-3. What rating did u10023 give to prod_14?
+```{r}
+#as(data_matrix, 'matrix') #turn into matrix
+as(data_matrix, 'matrix')['u10023', 'prod_14']
+
+#explore data
+#colMeans(data_matrix)
+#rowMeans(data_matrix)
+#rowSds(data_matrix) 
+#image(data_matrix)
+```
+#Split the date
+2-4. Now, let us split the data into a train sample and a test sample. We will use the sample() function with a seed of 1031 to create a train sample with 90% of the data. Run the following code to create the train and test samples.
+
+How many rows are in the train sample? (Answer the remaining questions in this section using the train sample.)
+```{r}
+set.seed(1031)
+split = sample(nrow(data_matrix),size = 0.9*nrow(data_matrix))
+train = data_matrix[split,]
+test = data_matrix[-split,]
+
+nrow(train)
+```
+#Explore the data
+## nratings()
+2-5. How many products (prod) did user 20150 (u20150) rate?
+```{r}
+nratings(train['u20150',])
+#or
+#print(rowCounts(train['u20150',]))
+```
+2-6. How many user ratings did product 25 (prod_25) receive?
+```{r}
+nratings(train[,'prod_25']) 
+#Or
+#colCounts(train[, 'prod_25'])
+```
+
+## getRatings()
+*table() to know the count*
+**2-7. What is the most common rating in the train sample?
+```{r}
+#getRatings(train)
+table(getRatings(train))
+
+#summary(rowMeans(train))
+```
+
+2-8. What is the average rating for product 100 (prod_100) in the train sample?
+```{r}
+mean(getRatings(train[,'prod_100']))
+```
+#Normalization (centering)
+2-9. Now, normalize user ratings using the normalize() function from recommenderLab. Use the defaults of method='center' and row=TRUE. What is the average rating for product 100 (prod_100) in the normalized train sample?
+
+Note:
+*Min-max normalization (Normalization)*: Guarantees all features will have the exact same scale but does not handle outliers well. Rescales a dataset so that each value falls between 0 and 1, using the minimum and maximum value in the dataset.
+
+*Z-score normalization (Standardization)*: Handles outliers, but does not produce normalized data with the exact same scale. Refers to the process of normalizing every value in a dataset such that the mean of all of the values is 0 and the standard deviation is 1.
+```{r}
+mean(getRatings(normalize(train, method='center', row=TRUE)[,'prod_100']))
+```
+#Standardization(z-score)
+```{r}
+mean(getRatings(normalize(train, method='Z-score', row=TRUE)[,'prod_100']))
+```
+
+
+#Access similarity
+with 3 methods: *euclidean distance, cosine similarity, pearson correlation*
+
+2-10. Using the normalized user ratings generated above, assess the cosine similarity between *the first five users* in the train dataset (u395, u21174, u9881, u18449, u8926). Which of the following pairs is most similar?
+```{r}
+similarity(normalize(train)[1:6,],method = 'cosine')
+```
+#Construct recommendations
+## User-based collaborative filtering
+## top n recommendations
+3-1. Construct a user-based collaborative filtering recommender using the train data. Use defaults for the parameters in the Recommender function. Based on this recommender, which of the following are in the list of top 5 recommended products for u10139? (Note: u10139 is in the test data).
+```{r}
+recommenderRegistry$get_entries(data='realRatingMatrix')$UBCF_realRatingMatrix
+
+#recommenderRegistry$get_entries(data='realRatingMatrix')$POPULAR_realRatingMatrix #non-personalized:Popular
+
+recom_ubcf = Recommender(train, 
+                         method='UBCF', #method = 'POPULAR'
+                         parameter=list(method='cosine',nn=25, normalize='center'))
+
+#top n recommendations
+pred_ubcf_topN = predict(recom_ubcf,newdata=test,method='topNList',n=5)
+getList(pred_ubcf_topN)[1:5]
+
+#how much each user will like the top recommended movies.
+#pred = predict(recom_ubcf, test, n = 1)
+#getRatings(pred)
+
+```
+
+3-2. Based on the recommender created above, what is the predicted rating of product 10 (prod_10) by user 10139 (u10139)?
+```{r}
+pred_ubcf = predict(recom_ubcf,newdata=test,type='ratings')
+
+#as(test,'matrix')['u10139',]
+
+#Recommendations for Jokes not rated
+#as(pred_ubcf,'matrix')['u10139',] 
+as(pred_ubcf,'matrix')['u10139', 'prod_10'] 
+```
+## item-based collaborative filtering
+### Default for the parameters
+3-3. Construct an item-based collaborative filtering recommender using train data. Use defaults for the parameters in the Recommender function. Based on this recommender, which of the following are in the list of top 5 recommended products for u10139?
+
+```{r}
+recommenderRegistry$get_entries(data='realRatingMatrix')$IBCF_realRatingMatrix # see parameters for IBCF
+
+#Use the defaults for parameters
+recom_ibcf = Recommender(train, method='IBCF', 
+                         parameter= NULL)
+
+#recom_ibcf = Recommender(train, method='IBCF', parameter=list(k=30, method='cosine', normalize='center'))
+recom_ibcf
+
+pred_ibcf_topN = predict(recom_ibcf,newdata=test,method='topNList',n=5)
+getList(pred_ibcf_topN)[1:5]
+```
+3-4. Based on the recommender created in the previous question, what is the predicted rating of product 10 (prod_10) by user 10139 (u10139)?
+
+```{r}
+pred_ibcf = predict(recom_ibcf,newdata=test,type='ratings')
+
+#as(test,'matrix')['u10139',]
+as(pred_ibcf,'matrix')['u10139', 'prod_10'] 
+```
+#Evaluate different models
+3-5. The recommenderlab library offers a useful framework to cross-validate and evaluate recommenders. Here, we are going to create an evaluation scheme using ratings_matrix, the realRatingMatrix that we had before splitting into a train and test dataset. 
+
+The evaluationScheme() function below will do a 80:20 split on the data, placing 80% of the data in the train sample. And, we will give the recommender algorithm 30 items from the test set and hold out the other items for computing the error. As with any random sampling operation, it is important to set the seed right before creating the evaluationScheme as done below.
+
+```{r}
+set.seed(1031)
+es = evaluationScheme(data_matrix,method='split',train = 0.8, given=30)
+```
+
+## Evaluate accuracy
+*calcPredictionAccuracy()*
+Now, evaluate accuracy of an item-based collaborative filtering recommender using defaults. To do so, run the following code.
+What's the RMSE ? 
+
+Note: *What is good RMSE?* The lower the RMSE, the better a given model is able to “fit” a dataset. However, the range of the dataset you’re working with is important in determining whether or not a given RMSE value is “low” or not. One way is to *normalize* it to compare between models.
+https://www.statology.org/what-is-a-good-rmse/
+
+```{r}
+recom = Recommender(getData(es,'train'),method='IBCF')
+
+pred_ibcf = predict(recom,newdata = getData(es,'known'),type='ratings')
+
+accuracy_ibcf = calcPredictionAccuracy(x = pred_ibcf,data = getData(es,'unknown'));accuracy_ibcf
+```
+
+3-6. Now, evaluate the accuracy of the user-based collaborative filtering recommender using defaults. To do so, modify the code in the previous question. Note, there is no need to recreate the evaluation scheme. What is the RMSE for the user-based collaborative filtering recommender?
+```{r}
+#set.seed(1031)
+#es = evaluationScheme(data_matrix,method='split',train = 0.8, given=30)
+recom = Recommender(getData(es,'train'),method='UBCF')
+
+pred_ubcf = predict(recom,newdata = getData(es,'known'),type='ratings')
+
+accuracy_ubcf = calcPredictionAccuracy(x = pred_ubcf,data = getData(es,'unknown'))
+accuracy_ubcf
+```
+
+3-7. Next, evaluate the accuracy of another user-based collaborative filtering recommender, with just one change from the previous question. Set the parameter nn to 100. 
+
+What is the RMSE for this modified user-based collaborative filtering recommender?
+```{r}
+#To learn more about the default nn, run:
+recommenderRegistry$get_entries()$UBCF_realRatingMatrix
+
+recom_ubcf1 = Recommender(train, 
+                         method='UBCF', 
+                         parameter=list(method='cosine',nn=100, normalize='center'))
+
+pred_ubcf1 = predict(recom_ubcf1,newdata=test,type='ratings')
+set.seed(1031)
+es = evaluationScheme(data_matrix,method='split',train = 0.8, given=30)
+
+recom = Recommender(getData(es,'train'),method='UBCF', 
+                    parameter=list(method='cosine',nn=100, normalize='center'))
+
+pred_ubcf = predict(recom,newdata = getData(es,'known'),type='ratings')
+
+accuracy_ubcf = calcPredictionAccuracy(x = pred_ubcf,data = getData(es,'unknown'))
+print(accuracy_ubcf)
+```
+
+3-8. Finally, as a baseline for evaluating personalized recommenders, let us use a non-personalized recommender that relies only on popularity not on similarity. To do so, modify the code for the item-based recommender, replacing 'IBCF' by 'POPULAR'. Note, there is no need to recreate the evaluation scheme.
+
+What is the RMSE for this non-personalized recommender?
+```{r}
+recom = Recommender(getData(es,'train'),method='POPULAR')
+
+pred_pop = predict(recom,newdata = getData(es,'known'),type='ratings')
+
+accuracy_pop = calcPredictionAccuracy(x = pred_pop,data = getData(es,'unknown'));accuracy_pop
+
+```
+

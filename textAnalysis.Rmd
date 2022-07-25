@@ -1,15 +1,3 @@
----
-title: "Ass2"
-author: "Ping-Hsuan Lin"
-date: "3/3/2022"
-output: html_document
----
-
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
-#R.Version()
-```
-
 ```{r}
 setwd('D:/Spring2022Codes/R')
 data <- read.csv(file = 'baby_reviews.csv',stringsAsFactors = F)
